@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bloom filter - why mmh3, double hashing &amp; math</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="learn-page">
+  <header class="site-header">
+    <div class="header-inner header-inner--spread">
+      <div>
+        <h1>Why this Bloom filter is built this way</h1>
+        <p class="lede">mmh3, double hashing, the sizing formulas, and a concrete walkthrough with the name <strong>saurabh</strong>.</p>
+      </div>
+      <nav class="learn-nav">
+        <a class="learn-nav__link" href="/">← Interactive demo</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="learn-main">
+    <article class="panel learn-section">
+      <h2>The filter stores no names</h2>
+      <p>
+        A Bloom filter keeps a fixed array of <strong>m</strong> bits (initially all <strong>0</strong>). It does <strong>not</strong> store strings like
+        “saurabh” anywhere-only which bits should be <strong>1</strong>. Membership is <em>probabilistic</em>: a query can say
+        “definitely not in the set” or “maybe in the set.”
+      </p>
+    </article>
+
+    <article class="panel learn-section">
+      <h2>Why MurmurHash3 (mmh3) is used</h2>
+      <ul class="learn-list">
+        <li><strong>Speed:</strong> Very fast in software-important when you insert or query millions of keys.</li>
+        <li><strong>Distribution:</strong> Output bits are well spread out, so indices into the bit array behave like pseudo-random positions (fewer accidental clumps than a weak hash).</li>
+        <li><strong>Not cryptographic:</strong> Bloom filters do not need collision resistance against an attacker-only good mixing-so a non-crypto hash is appropriate.</li>
+        <li><strong>Stable seeds:</strong> We call mmh3 with fixed seeds (e.g. 0 and 1) so the same string always maps to the same bit positions.</li>
+      </ul>
+    </article>
+
+    <article class="panel learn-section">
+      <h2>Why double hashing is used</h2>
+      <p>
+        The classic Bloom filter needs <strong>k</strong> different hash values per key. Maintaining <strong>k</strong> fully independent hash functions is awkward.
+        <strong>Double hashing</strong> builds all <strong>k</strong> positions from only <strong>two</strong> base hashes, <strong>h₁(x)</strong> and <strong>h₂(x)</strong>:
+      </p>
+      <pre class="formula-block" aria-label="Double hashing formula">hᵢ(x) = ( h₁(x) + i · h₂(x) ) mod m,   for i = 0, 1, …, k − 1</pre>
+      <p>
+        Here <strong>h₂</strong> is chosen so it is never 0 modulo <strong>m</strong> (in this project: <strong>h₂ ∈ [1, m − 1]</strong>), so the <strong>k</strong> indices do not collapse to one point.
+        This pattern is standard, cheap, and works well in practice.
+      </p>
+    </article>
+
+    <article class="panel learn-section">
+      <h2>Mathematical sizing (this demo)</h2>
+      <p>Target: about <strong>n</strong> keys and desired false-positive rate <strong>p</strong> (here <strong>n = 100 000</strong>, <strong>p ≈ 1%</strong>).</p>
+      <p class="formula-label">Optimal bit array length <strong>m</strong>:</p>
+      <pre class="formula-block">m ≈ − (n · ln p) / (ln 2)²</pre>
+      <p class="formula-label">Optimal number of hash functions <strong>k</strong>:</p>
+      <pre class="formula-block">k ≈ (m / n) · ln 2</pre>
+      <p>
+        With those choices, this app gets <strong>m = 958 506</strong> and <strong>k = 7</strong>. Memory for the bit buffer is on the order of <strong>m / 8</strong> bytes (plus small object overhead) when using <code>bitarray</code>.
+      </p>
+      <p class="formula-label">Estimated false-positive rate after inserting <strong>n<sub>ins</sub></strong> keys (approximation):</p>
+      <pre class="formula-block">P(false positive) ≈ ( 1 − e^(−k · nᵢₙₛ / m) )^k</pre>
+      <p>As the bit array fills, this probability rises toward the design target.</p>
+    </article>
+
+    <article class="panel learn-section">
+      <h2>Example: “empty memory,” then <strong>saurabh</strong></h2>
+      <p>
+        Picture the bit array starting as <strong>all zeros</strong>-there are <strong>no</strong> stored names, only bits. You <strong>add</strong> the first name
+        <strong>saurabh</strong>: compute <strong>h₁(saurabh)</strong>, <strong>h₂(saurabh)</strong>, then the <strong>k</strong> indices above and set those bits to <strong>1</strong>
+        (some may already be 1 from chance; that is fine).
+      </p>
+      <p>
+        You then <strong>search</strong> for <strong>saurabh</strong> using the <em>same</em> hash formulas. If <strong>every</strong> probed bit is <strong>1</strong>, the answer is
+        <strong>“possibly present”</strong>-and because you just inserted it, that is a <strong>true positive</strong>. If <strong>any</strong> probed bit is <strong>0</strong>, the answer is
+        <strong>“definitely not present.”</strong>
+      </p>
+      <p class="hint learn-hint">
+        The live server below uses the <strong>same</strong> Bloom filter as the main demo (already filled with 100 000 random users). Adding <strong>saurabh</strong> still shows real
+        hash indices and bit probes; numerically, the filter was not empty before you clicked.
+      </p>
+
+      <div class="learn-demo">
+        <p class="learn-demo__label">Try the API with <code>saurabh</code>:</p>
+        <div class="row">
+          <input type="text" id="learn-username" value="saurabh" maxlength="32" autocomplete="off" />
+          <button type="button" id="learn-btn-add">Add</button>
+          <button type="button" id="learn-btn-check">Check</button>
+        </div>
+        <pre class="learn-demo__out" id="learn-demo-out" aria-live="polite">Click Add or Check to see the JSON response (hash indices and bit values).</pre>
+      </div>
+    </article>
+  </main>
+
+  <script>
+    window.__BF_API = {
+      add: {{ url_for('add_username')|tojson }},
+      check: {{ url_for('check_username')|tojson }},
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/learn.js') }}"></script>
+</body>
+</html>
