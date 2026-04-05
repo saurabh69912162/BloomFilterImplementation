@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
 import re
 import string
+import threading
 from typing import Any
 
 from flask import Flask, jsonify, render_template, request
@@ -22,6 +24,8 @@ BASE_USERS: list[str] = []
 INSERTED: set[str] = set()
 BF: BloomFilter | None = None
 API_ADD_OPERATIONS: int = 0
+
+_BLOOM_INIT_LOCK = threading.Lock()
 
 _USERNAME_PATTERN = re.compile(r"^[a-z]{1,32}$")
 
@@ -78,6 +82,30 @@ def bootstrap_bloom_demo(expected_n: int = 100_000) -> None:
         BF.add(name)
     API_ADD_OPERATIONS = 0
     logger.info("Ready: %d users in filter, m=%d k=%d", len(BASE_USERS), BF.m, BF.k)
+
+
+def ensure_bloom_ready() -> None:
+    """
+    Load the Bloom filter on first use (WSGI deployments do not run main.py).
+
+    Skipped when app.config['TESTING'] is True so unit tests stay fast.
+    Size n from env BLOOM_EXPECTED_N (default 100_000).
+    """
+    global BF
+    if BF is not None:
+        return
+    if app.config.get("TESTING"):
+        return
+    with _BLOOM_INIT_LOCK:
+        if BF is not None:
+            return
+        n = int(os.environ.get("BLOOM_EXPECTED_N", "100000"))
+        bootstrap_bloom_demo(n)
+
+
+@app.before_request
+def _init_bloom_before_request() -> None:
+    ensure_bloom_ready()
 
 
 @app.route("/")
