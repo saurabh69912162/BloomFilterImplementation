@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bloom Filter Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner header-inner--spread">
+      <div>
+        <h1>Bloom Filter Demo</h1>
+        <p class="lede">100k users in a Bloom filter (mmh3, double hashing). Add or check to see bits update.</p>
+      </div>
+      <nav class="learn-nav">
+        <a class="learn-nav__link" href="/learn">Theory &amp; math →</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <div class="main-col">
+  <section class="panel controls" aria-label="Username add and check">
+    <label for="username">Username <span class="hint">(lowercase letters, 1–32 chars)</span></label>
+    <div class="row">
+      <input type="text" id="username" name="username" autocomplete="off" maxlength="32" />
+      <button type="button" id="btn-add">Add</button>
+      <button type="button" id="btn-check">Check</button>
+    </div>
+  </section>
+
+  <section class="panel intro-section" aria-labelledby="intro-heading">
+    <h2 id="intro-heading">What is a Bloom filter?</h2>
+    <p class="intro-definition">
+      A Bloom filter is a space-efficient, probabilistic data structure used to quickly test whether an element
+      exists in a set, allowing for <strong>false positives</strong> but <strong>zero false negatives</strong>.
+      It uses a bit array and multiple hash functions, enabling services like Instagram to quickly check username
+      availability and to manage content recommendation (e.g. seen reels) without overloading databases on every
+      lookup.
+    </p>
+
+    <details class="home-collapsible">
+      <summary>Key uses of Bloom filters on Instagram</summary>
+      <div class="home-collapsible__body">
+        <h3 class="home-collapsible__subhead">Username availability checks</h3>
+        <p>
+          When creating an account, Instagram can use a Bloom filter to quickly decide if a username is likely
+          already taken. It acts as a fast, in-memory check to bypass or reduce slow database queries.
+        </p>
+        <h3 class="home-collapsible__subhead">Content recommendation filtering</h3>
+        <p>
+          Instagram can use Bloom filters to track which reels or posts a user has already seen so the recommendation
+          system avoids suggesting the same content twice, saving space by not storing every user–item interaction
+          explicitly.
+        </p>
+      </div>
+    </details>
+
+    <details class="home-collapsible">
+      <summary>Advantages</summary>
+      <div class="home-collapsible__body">
+        <ul class="home-collapsible__list">
+          <li>
+            <strong>Extremely space efficient:</strong> millions of items can be represented in a compact bit array.
+          </li>
+          <li>
+            <strong>High performance:</strong> inserts and lookups are <strong>O(k)</strong> time, where
+            <strong>k</strong> is the number of hash functions (small and fixed in practice).
+          </li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="home-collapsible">
+      <summary>Limitations</summary>
+      <div class="home-collapsible__body">
+        <ul class="home-collapsible__list">
+          <li>
+            <strong>Probabilistic:</strong> the filter may return a false positive (it says “maybe present” when the
+            item was never inserted), but it never returns a false negative for inserted items-if any probed bit is 0,
+            the item is definitely not in the set.
+          </li>
+          <li>
+            <strong>No deletion:</strong> standard Bloom filters do not support removing individual elements (counting
+            or other variants are needed for that).
+          </li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel steps" id="steps-panel" aria-live="polite">
+    <h2>What happened</h2>
+    <ol class="steps" id="steps-log"></ol>
+  </section>
+
+  <section class="panel viz">
+    <h2>Bit array (first 200 bits)</h2>
+    <p class="hint">Grey = 0, green = 1. Yellow = probed index; red border = flipped 0→1 on add.</p>
+    <div class="bit-grid" id="bit-grid" role="img" aria-label="First two hundred bits of the filter"></div>
+  </section>
+
+  <section class="panel viz">
+    <h2>Probed indices (this operation)</h2>
+    <div class="hash-cells" id="hash-cells"></div>
+  </section>
+
+  <section class="panel hashes">
+    <h2>Hash breakdown</h2>
+    <p class="hash-brief hint" id="hash-brief">Run Add or Check to see how this username maps to bit positions.</p>
+    <details class="hash-raw-wrap">
+      <summary>Raw numbers (JSON)</summary>
+      <pre class="hash-json" id="hash-json">-</pre>
+    </details>
+  </section>
+    </div>
+
+    <aside class="sidebar" aria-label="Filter stats and result">
+      <section class="panel stats" id="stats-panel" aria-live="polite">
+        <h2>Filter stats</h2>
+        <ul class="stats-list" id="stats-list">
+          <li>Loading…</li>
+        </ul>
+      </section>
+      <section class="panel result" id="result-panel" aria-live="assertive">
+        <h2>Result</h2>
+        <p id="result-text" class="result-text">Enter a username and choose Add or Check.</p>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    window.__BF_API = {
+      stats: {{ url_for('stats')|tojson }},
+      previewBits: {{ url_for('preview_bits')|tojson }},
+      add: {{ url_for('add_username')|tojson }},
+      check: {{ url_for('check_username')|tojson }},
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
