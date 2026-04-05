@@ -161,6 +161,7 @@ def add_username():
     if not ok:
         return jsonify({"ok": False, "error": msg_or_name}), 400
     name = msg_or_name
+    logger.info("Bloom filter ADD: username=%r", name)
     breakdown = BF.get_hash_breakdown(name)
     result = BF.add(name)
     INSERTED.add(name)
@@ -190,6 +191,7 @@ def check_username():
     breakdown = BF.get_hash_breakdown(name)
     probe = BF.check(name)
     verdict = "possibly_present" if probe["possibly_present"] else "definitely_not_present"
+    logger.info("Bloom filter CHECK: username=%r verdict=%s", name, verdict)
     label = "Possibly Present" if probe["possibly_present"] else "Definitely Not Present"
     viz = _viz_payload(BF, probe["hash_indices"])
     return jsonify(
